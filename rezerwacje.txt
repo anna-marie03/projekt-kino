@@ -1,0 +1,3 @@
+zarezerwowano|1|1|Anna|Kafka|kafka@gmail.com|11|20.0
+zarezerwowano|2|2|Kasia|Nowak|nowak@gmail.com|13|20.0
+anulowano|2|2|Kasia|Nowak|nowak@gmail.com|13|20.0
