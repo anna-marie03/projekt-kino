@@ -1,24 +1,30 @@
 import os
-
 from modele import (
     MiejsceZwykle,
     MiejsceVIP,
     MiejsceDlaNiepelnosprawnych,
-    Klient,
     Rezerwacja,
+    Klient,
 )
 
-#tutaj zaczyna się tworzenie miejsc
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REZERWACJE_PLIK = os.path.join(BASE_DIR, "rezerwacje.txt")
+REZERWACJE_BACKUP = os.path.join(BASE_DIR, "rezerwacje_backup.txt")
+
+
 class Kino:
     def __init__(self):
-        self.miejsca = {}
-        self.klienci = {}
-        self.rezerwacje = {}
+        self.miejsca = {}      # numer_miejsca -> Miejsce
+        self.klienci = {}      # id_klienta -> Klient
+        self.rezerwacje = {}   # id_rezerwacji -> Rezerwacja
+
         self._kolejny_id_rezerwacji = 1
+        self._kolejny_id_klienta = 1
 
         self._zainicjalizuj_miejsca()
+        self.wczytaj_dane()
 
-    # ------------------ Inicjalizacja miejsc ------------------
+    # ------------------ MIEJSCA ------------------
 
     def _zainicjalizuj_miejsca(self):
         for i in range(1, 21):
@@ -28,95 +34,94 @@ class Kino:
         for i in range(26, 31):
             self.miejsca[i] = MiejsceDlaNiepelnosprawnych(i)
 
-    # ------------------ Operacje podstawowe ------------------
+    def wyswietl_wszystkie_miejsca(self):
+        print("\n--- WSZYSTKIE MIEJSCA ---")
+        for m in self.miejsca.values():
+            print(m.pokaz_informacje_o_miejscu())
 
     def wyswietl_dostepne_miejsca(self):
-        print("\n--- LISTA MIEJSC ---")
+        print("\n--- DOSTĘPNE MIEJSCA ---")
+        znaleziono = False
         for m in self.miejsca.values():
-            print(m.opisz())
+            if m.dostepne:
+                print(m.pokaz_informacje_o_miejscu())
+                znaleziono = True
+        if not znaleziono:
+            print("Brak dostępnych miejsc.")
 
-    def znajdz_miejsce(self, numer):
-        return self.miejsca.get(numer)
+    # ------------------ KLIENCI ------------------
 
-    def dodaj_klienta(self, klient: Klient):
+    def znajdz_klienta_po_emailu(self, email):
+        email = email.strip().lower()
+        for k in self.klienci.values():
+            if k.email.lower() == email:
+                return k
+        return None
+
+    def zaloguj_lub_utworz_klienta(self, imie, nazwisko, email):
+        istnieje = self.znajdz_klienta_po_emailu(email)
+        if istnieje:
+            return istnieje
+
+        klient = Klient(self._kolejny_id_klienta, imie, nazwisko, email)
         self.klienci[klient.id_klienta] = klient
-
-    def znajdz_klienta(self, id_klienta):
-        return self.klienci.get(id_klienta)
-
-    def _next_rezerwacja_id(self):
-        rid = self._kolejny_id_rezerwacji
-        self._kolejny_id_rezerwacji += 1
-        return rid
+        self._kolejny_id_klienta += 1
+        return klient
 
     # ------------------ REZERWACJE ------------------
 
-    def dokonaj_rezerwacji(self, id_klienta, numer_miejsca):
-        klient = self.znajdz_klienta(id_klienta)
-        miejsce = self.znajdz_miejsce(numer_miejsca)
-
-        if klient is None:
-            print("Klient nie istnieje!")
-            return None
+    def dokonaj_rezerwacji(self, klient, numer_miejsca):
+        miejsce = self.miejsca.get(numer_miejsca)
 
         if miejsce is None:
-            print("Nie ma takiego miejsca!")
+            print("Nie ma takiego miejsca.")
             return None
 
         if not miejsce.dostepne:
-            print("To miejsce jest zajęte!")
+            print("To miejsce jest już zajęte.")
             return None
 
         miejsce.zarezerwuj()
-        id_rez = self._next_rezerwacja_id()
+
+        id_rez = self._kolejny_id_rezerwacji
+        self._kolejny_id_rezerwacji += 1
 
         rez = Rezerwacja(
             id_rezerwacji=id_rez,
-            klient_id=id_klienta,
+            klient_id=klient.id_klienta,
             numer_miejsca=numer_miejsca,
             cena_koncowa=miejsce.cena,
-            aktywna=True,
+            aktywna=True
         )
 
         self.rezerwacje[id_rez] = rez
         klient.dodaj_rezerwacje(id_rez)
 
-        print(f"Rezerwacja udana! ID: {id_rez}")
-
-        # AUTOMATYCZNY ZAPIS PO REZERWACJI
+        print(f"Zarezerwowano miejsce {numer_miejsca} (ID rezerwacji: {id_rez})")
         self.zapisz_dane()
-
         return id_rez
 
-    def anuluj_rezerwacje(self, id_rezerwacji):
-        rez = self.rezerwacje.get(id_rezerwacji)
+    def anuluj_rezerwacje_moje_miejsce(self, klient, numer_miejsca):
+        for id_rez in klient.historia_rezerwacji:
+            rez = self.rezerwacje.get(id_rez)
+            if rez and rez.aktywna and rez.numer_miejsca == numer_miejsca:
+                rez.anuluj()
 
-        if rez is None:
-            print("Brak takiej rezerwacji.")
-            return
+                miejsce = self.miejsca.get(numer_miejsca)
+                if miejsce:
+                    miejsce.anuluj_rezerwacje()
 
-        if not rez.aktywna:
-            print("Ta rezerwacja już jest anulowana.")
-            return
+                print(f"Anulowano rezerwację miejsca {numer_miejsca} (ID rezerwacji: {id_rez})")
+                self.zapisz_dane()
+                return True
 
-        miejsce = self.miejsca.get(rez.numer_miejsca)
-        if miejsce:
-            miejsce.anuluj_rezerwacje()
+        print("Nie masz aktywnej rezerwacji na to miejsce.")
+        return False
 
-        rez.anuluj()
-        print("Rezerwacja została anulowana.")
+    # ------------------ HISTORIA ------------------
 
-        # AUTOMATYCZNY ZAPIS PO ANULOWANIU
-        self.zapisz_dane()
-
-    def wyswietl_historie_klienta(self, id_klienta):
-        klient = self.znajdz_klienta(id_klienta)
-
-        if klient is None:
-            print("Nie znaleziono klienta.")
-            return
-
-        print(f"\nHistoria rezerwacji dla: {klient.imie} {klient.nazwisko}")
+    def historia_klienta(self, klient):
+        print("\n--- TWOJA HISTORIA REZERWACJI ---")
 
         if not klient.historia_rezerwacji:
             print("Brak rezerwacji.")
@@ -126,49 +131,107 @@ class Kino:
             rez = self.rezerwacje.get(id_rez)
             if rez is None:
                 continue
-            status = "AKTYWNA" if rez.aktywna else "ANULOWANA"
+
+            status_txt = "zarezerwowano" if rez.aktywna else "anulowano"
             print(
-                f"ID: {rez.id_rezerwacji} | miejsce: {rez.numer_miejsca} "
-                f"| cena: {rez.cena_koncowa} zł | {status}"
+                f"{klient.imie} | {klient.nazwisko} | {klient.email} | "
+                f"Miejsce: {rez.numer_miejsca} | Cena: {rez.cena_koncowa} zł | Status: {status_txt}"
             )
 
-    # ------------------ ZAPIS DO PLIKU TXT ------------------
+    # ------------------ ZAPIS / ODCZYT ------------------
 
     def zapisz_dane(self):
         """
-        Plik ma mieć format:
-
-        zarezerwowano|id_rez|id_klienta|imie|nazwisko|email|numer_miejsca|cena
-        anulowano|id_rez|id_klienta|imie|nazwisko|email|numer_miejsca|cena
-
-        Dla każdej rezerwacji:
-        - linia 'zarezerwowano'
-        - JEŚLI jest anulowana'
+        Format:
+        status|id_klienta|imie|nazwisko|email|id_rezerwacji|numer_miejsca|cena
         """
+        linie = []
+        for rez in self.rezerwacje.values():
+            klient = self.klienci.get(rez.klient_id)
+            if klient is None:
+                continue
 
-        sciezka = os.path.join(os.getcwd(), "rezerwacje.txt")
+            status_txt = "zarezerwowano" if rez.aktywna else "anulowano"
+            linie.append(
+                f"{status_txt}|{klient.id_klienta}|{klient.imie}|{klient.nazwisko}|{klient.email}|"
+                f"{rez.id_rezerwacji}|{rez.numer_miejsca}|{rez.cena_koncowa}\n"
+            )
 
-        with open(sciezka, "w", encoding="utf-8") as f:
-            for rez in self.rezerwacje.values():
-                klient = self.klienci.get(rez.klient_id)
-                if klient is None:
+        with open(REZERWACJE_PLIK, "w", encoding="utf-8") as f:
+            f.writelines(linie)
+
+        with open(REZERWACJE_BACKUP, "w", encoding="utf-8") as f:
+            f.writelines(linie)
+
+    def wczytaj_dane(self):
+        # jeśli brak rezerwacje.txt -> wczytaj backup
+        sciezka = REZERWACJE_PLIK if os.path.exists(REZERWACJE_PLIK) else REZERWACJE_BACKUP
+        if not os.path.exists(sciezka):
+            return
+
+        with open(sciezka, "r", encoding="utf-8") as f:
+            for linia in f:
+                linia = linia.strip()
+                if not linia:
                     continue
 
-                # Zawsze linia zarezerwowano
-                f.write(
-                    f"zarezerwowano|"
-                    f"{rez.id_rezerwacji}|{klient.id_klienta}|"
-                    f"{klient.imie}|{klient.nazwisko}|{klient.email}|"
-                    f"{rez.numer_miejsca}|{rez.cena_koncowa}\n"
+                czesci = linia.split("|")
+
+                # STARY FORMAT (7 pól): bez ceny
+                if len(czesci) == 7:
+                    status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca = czesci
+                    cena = None
+
+                # NOWY FORMAT (8 pól): z ceną
+                elif len(czesci) == 8:
+                    status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca, cena = czesci
+                else:
+                    # linia uszkodzona
+                    continue
+
+                try:
+                    id_kl = int(id_kl)
+                    id_rez = int(id_rez)
+                    numer_miejsca = int(numer_miejsca)
+                except ValueError:
+                    continue
+
+                # pomijamy rezerwacje na nieistniejące miejsca
+                if numer_miejsca not in self.miejsca:
+                    continue
+
+                aktywna = (status_txt == "zarezerwowano")
+
+
+                if cena is None:
+                    cena_float = self.miejsca[numer_miejsca].cena
+                else:
+                    try:
+                        cena_float = float(cena)
+                    except ValueError:
+                        cena_float = self.miejsca[numer_miejsca].cena
+
+                # klient
+                if id_kl not in self.klienci:
+                    self.klienci[id_kl] = Klient(id_kl, imie, nazwisko, email)
+                self._kolejny_id_klienta = max(self._kolejny_id_klienta, id_kl + 1)
+
+                # rezerwacja
+                rez = Rezerwacja(
+                    id_rezerwacji=id_rez,
+                    klient_id=id_kl,
+                    numer_miejsca=numer_miejsca,
+                    cena_koncowa=cena_float,
+                    aktywna=aktywna
                 )
+                self.rezerwacje[id_rez] = rez
+                self.klienci[id_kl].dodaj_rezerwacje(id_rez)
 
-                # Jeśli anulowana → dopisz linię anulowano
-                if not rez.aktywna:
-                    f.write(
-                        f"anulowano|"
-                        f"{rez.id_rezerwacji}|{klient.id_klienta}|"
-                        f"{klient.imie}|{klient.nazwisko}|{klient.email}|"
-                        f"{rez.numer_miejsca}|{rez.cena_koncowa}\n"
-                    )
+                # stan miejsca
+                if aktywna:
+                    self.miejsca[numer_miejsca].zarezerwuj()
+                else:
+                    self.miejsca[numer_miejsca].anuluj_rezerwacje()
 
-        print("Zapisano dane do pliku rezerwacje.txt.")
+                # liczniki
+                self._kolejny_id_rezerwacji = max(self._kolejny_id_rezerwacji, id_rez + 1)

@@ -1,145 +1,129 @@
-from modele import Klient
 from logika import Kino
+from constants import MIN_MIEJSCE, MAX_MIEJSCE
 
 
-# ============ LOGOWANIE / TWORZENIE KLIENTA ============
-
-def logowanie_klienta(kino: Kino) -> Klient:
+def wczytaj_niepuste(komunikat):
     while True:
-        print("\n=== Logowanie Klienta ===")
+        txt = input(komunikat).strip()
+        if txt:
+            return txt
+        print("Pole nie może być puste.")
+
+
+def wczytaj_email():
+    while True:
+        email = input("Email: ").strip()
+        if not email:
+            print("Email nie może być pusty.")
+            continue
+        if "@" not in email:
+            print("Email musi zawierać znak @.")
+            continue
+        return email
+
+
+def wczytaj_int(komunikat, min_v=None, max_v=None):
+    while True:
         try:
-            id_klienta = int(input("Podaj ID klienta: "))
+            v = int(input(komunikat))
         except ValueError:
-            print("Niepoprawny ID.")
+            print("To musi być liczba.")
             continue
 
-        imie = input("Podaj imię: ").strip()
-        nazwisko = input("Podaj nazwisko: ").strip()
-        email = input("Podaj email: ").strip()
+        if min_v is not None and v < min_v:
+            print(f"Wartość musi być >= {min_v}.")
+            continue
 
-        klient = kino.znajdz_klienta(id_klienta)
+        if max_v is not None and v > max_v:
+            print(f"Wartość musi być <= {max_v}.")
+            continue
 
-        if klient:
-            if (
-                klient.imie == imie
-                and klient.nazwisko == nazwisko
-                and klient.email == email
-            ):
-                print("Zalogowano pomyślnie.\n")
-                return klient
-            else:
-                print("Dane niezgodne z istniejącym klientem.")
-        else:
-            nowy = Klient(id_klienta, imie, nazwisko, email)
-            kino.dodaj_klienta(nowy)
-            print("Utworzono nowego klienta i zalogowano.\n")
-            return nowy
+        return v
 
 
-def klient_do_rezerwacji_jako_gosc(kino: Kino) -> Klient:
-    print("\n=== Rezerwacja jako niezalogowany klient ===")
-    return logowanie_klienta(kino)
+def logowanie(kino):
+    print("\n=== LOGOWANIE ===")
+    print("1. Zaloguj jako klient")
+    print("2. Zaloguj jako gość")
 
+    while True:
+        wybor = input("Wybierz opcję: ").strip()
+        if wybor in ("1", "2"):
+            break
+        print("Wybierz 1 lub 2.")
 
-# ============ MENU ============
+    imie = wczytaj_niepuste("Imię: ")
+    nazwisko = wczytaj_niepuste("Nazwisko: ")
+    email = wczytaj_email()
 
-def wyswietl_menu(aktualny_klient: Klient | None):
-    print("\n===== SYSTEM REZERWACJI KINA =====")
+    klient = kino.zaloguj_lub_utworz_klienta(imie, nazwisko, email)
 
-    if aktualny_klient:
-        print(f"(Zalogowany: {aktualny_klient.imie} {aktualny_klient.nazwisko} | ID: {aktualny_klient.id_klienta})")
+    if wybor == "1":
+        print(f"Zalogowano jako klient: {klient.imie} {klient.nazwisko}")
     else:
-        print("(Brak zalogowanego klienta – możesz rezerwować jako gość)")
+        print(f"Zalogowano jako gość: {klient.imie} {klient.nazwisko}")
 
-    print("1. Zaloguj klienta")
-    print("2. Wyświetl wszystkie miejsca")
-    print("3. Dokonaj rezerwacji")
-    print("4. Anuluj rezerwację")
-    print("5. Historia rezerwacji klienta")
-    print("6. Zapis do pliku TXT")
-    print("7. Wyloguj")
+    return klient
+
+
+def menu_rezerwacji(klient):
+    print("\n===== MENU REZERWACJI =====")
+    print(f"Zalogowany: {klient.imie} {klient.nazwisko} | {klient.email}")
+    print("1. Wyświetl wszystkie miejsca")
+    print("2. Wyświetl dostępne miejsca")
+    print("3. Zarezerwuj miejsce")
+    print("4. Anuluj moją rezerwację")
+    print("5. Pokaż moją historię rezerwacji")
+    print("6. Wyloguj")
     print("0. Wyjście")
 
 
 def main():
     kino = Kino()
-    aktualny_klient: Klient | None = None
 
     while True:
-        wyswietl_menu(aktualny_klient)
-        wybor = input("Wybierz opcję: ")
+        klient = logowanie(kino)
 
-        # ---- logowanie ----
+        while True:
+            menu_rezerwacji(klient)
+            wybor = input("Wybierz opcję: ").strip()
 
-        if wybor == "1":
-            aktualny_klient = logowanie_klienta(kino)
+            if wybor == "1":
+                kino.wyswietl_wszystkie_miejsca()
 
-        # ---- miejsca ----
+            elif wybor == "2":
+                kino.wyswietl_dostepne_miejsca()
 
-        elif wybor == "2":
-            kino.wyswietl_dostepne_miejsca()
+            elif wybor == "3":
+                numer = wczytaj_int(
+                    f"Numer miejsca ({MIN_MIEJSCE}-{MAX_MIEJSCE}): ",
+                    min_v=MIN_MIEJSCE,
+                    max_v=MAX_MIEJSCE
+                )
+                kino.dokonaj_rezerwacji(klient, numer)
 
-        # ---- rezerwacja ----
+            elif wybor == "4":
+                numer = wczytaj_int(
+                    f"Numer miejsca do anulowania ({MIN_MIEJSCE}-{MAX_MIEJSCE}): ",
+                    min_v=MIN_MIEJSCE,
+                    max_v=MAX_MIEJSCE
+                )
+                kino.anuluj_rezerwacje_moje_miejsce(klient, numer)
 
-        elif wybor == "3":
-            try:
-                numer = int(input("Podaj numer miejsca: "))
-            except ValueError:
-                print("Niepoprawny numer!")
-                continue
+            elif wybor == "5":
+                kino.historia_klienta(klient)
 
-            if aktualny_klient:
-                id_kl = aktualny_klient.id_klienta
+            elif wybor == "6":
+                print(f"Wylogowano: {klient.imie} {klient.nazwisko}")
+                break
+
+            elif wybor == "0":
+                print("Do widzenia!")
+                return
+
             else:
-                gosc = klient_do_rezerwacji_jako_gosc(kino)
-                id_kl = gosc.id_klienta
+                print("Niepoprawna opcja.")
 
-            kino.dokonaj_rezerwacji(id_kl, numer)
-
-        # ---- anulowanie ----
-
-        elif wybor == "4":
-            try:
-                id_rez = int(input("Podaj ID rezerwacji: "))
-            except ValueError:
-                print("Niepoprawne ID.")
-                continue
-
-            kino.anuluj_rezerwacje(id_rez)
-
-        # ---- historia ----
-
-        elif wybor == "5":
-            try:
-                id_klienta = int(input("Podaj ID klienta: "))
-            except ValueError:
-                print("Niepoprawne ID.")
-                continue
-
-            kino.wyswietl_historie_klienta(id_klienta)
-
-        # ---- zapis ----
-
-        elif wybor == "6":
-            kino.zapisz_dane()
-
-        # ---- wylogowanie ----
-
-        elif wybor == "7":
-            if aktualny_klient is None:
-                print("Nikt nie jest zalogowany.")
-            else:
-                print(f"Wylogowano: {aktualny_klient.imie} {aktualny_klient.nazwisko}")
-                aktualny_klient = None
-
-        # ---- wyjście ----
-
-        elif wybor == "0":
-            print("Do widzenia!")
-            break
-
-        else:
-            print("Niepoprawna opcja.")
 
 if __name__ == "__main__":
     main()
