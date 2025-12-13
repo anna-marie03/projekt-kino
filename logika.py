@@ -182,7 +182,7 @@ class Kino:
                     status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca = czesci
                     cena = None
 
-               
+
                 elif len(czesci) == 8:
                     status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca, cena = czesci
                 else:
