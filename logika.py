@@ -177,16 +177,15 @@ class Kino:
 
                 czesci = linia.split("|")
 
-                # STARY FORMAT (7 pól): bez ceny
+
                 if len(czesci) == 7:
                     status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca = czesci
                     cena = None
 
-                # NOWY FORMAT (8 pól): z ceną
+               
                 elif len(czesci) == 8:
                     status_txt, id_kl, imie, nazwisko, email, id_rez, numer_miejsca, cena = czesci
                 else:
-                    # linia uszkodzona
                     continue
 
                 try:
