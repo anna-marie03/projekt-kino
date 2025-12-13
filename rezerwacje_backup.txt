@@ -1,2 +1,0 @@
-anulowano|1|Anna|Kafka|kafka@gmail.com|1|30|15.0
-zarezerwowano|1|Anna|Kafka|kafka@gmail.com|2|10|20.0
